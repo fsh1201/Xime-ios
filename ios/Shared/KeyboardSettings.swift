@@ -62,7 +62,7 @@ enum SharedStore {
             CFNotificationCenterGetDarwinNotifyCenter(),
             nil,
             ximeDarwinNotificationCallback,
-            CFNotificationName(name),
+            name,
             nil,
             .deliverImmediately
         )

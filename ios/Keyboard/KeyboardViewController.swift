@@ -27,9 +27,9 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
 
         model.updateContext(
-            autocapitalization: textDocumentProxy.autocapitalizationType,
-            keyboardType: textDocumentProxy.keyboardType,
-            returnKeyType: textDocumentProxy.returnKeyType
+            autocapitalization: textDocumentProxy.autocapitalizationType ?? .none,
+            keyboardType: textDocumentProxy.keyboardType ?? .default,
+            returnKeyType: textDocumentProxy.returnKeyType ?? .default
         )
         model.setShowsGlobe(needsInputModeSwitchKey)
         updateHeight()
