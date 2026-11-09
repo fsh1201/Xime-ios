@@ -1,0 +1,4 @@
+module RimeBridgeC {
+    header "include/RimeBridgeC.h"
+    export *
+}

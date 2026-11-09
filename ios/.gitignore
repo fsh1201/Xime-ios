@@ -1,0 +1,16 @@
+# XcodeGen 生成物
+Xime.xcodeproj/
+Xime.xcworkspace/
+Config/*.plist
+Config/*.entitlements
+
+# 构建产物
+.build/
+.tools/
+RimeBridge/build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# macOS
+.DS_Store
