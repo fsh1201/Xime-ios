@@ -1,4 +1,4 @@
-name: iOS Unsigned IPA
+name: iOS Rime IPA
 
 on:
   workflow_dispatch:
@@ -15,16 +15,25 @@ permissions:
 jobs:
   build:
     runs-on: macos-15-intel
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 最小骨架不链接 librime，也不读取 rime 数据。
-      # XcodeGen 只要求该目录存在；完整 Rime 构建时才需要初始化子模块。
-      - name: Prepare rime resource directory
-        run: mkdir -p app/src/main/assets/rime
+      - name: Init required submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive \
+            app/src/main/jni/librime \
+            app/src/main/jni/snappy \
+            app/src/main/assets/rime
+
+      - name: Build librime for iOS
+        run: ./ios/scripts/build-rime-ios-from-source.sh
+
+      - name: Enable Rime bridge
+        run: ./ios/scripts/enable-rime.sh
 
       - name: Install XcodeGen
         run: brew install xcodegen
