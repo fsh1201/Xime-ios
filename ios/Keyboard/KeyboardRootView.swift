@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct KeyboardRootView: View {
@@ -6,17 +7,25 @@ struct KeyboardRootView: View {
     private let spacing: CGFloat = 6
 
     var body: some View {
+        Group {
+            if model.settings.candidateBarEnabled && model.isCandidatePanelExpanded {
+                CandidatePanel(model: model)
+            } else {
+                keyboardBody
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
+        .background(Color(uiColor: .secondarySystemBackground).ignoresSafeArea())
+    }
+
+    private var keyboardBody: some View {
         let rows = model.rows
 
-        VStack(spacing: spacing) {
+        return VStack(spacing: spacing) {
             if model.settings.candidateBarEnabled {
                 CandidateBar(model: model)
                     .frame(height: 34)
-
-                if model.isCandidatePanelExpanded {
-                    CandidatePanel(model: model)
-                        .frame(height: 100)
-                }
             }
 
             ForEach(rows.indices, id: \.self) { index in
@@ -29,9 +38,6 @@ struct KeyboardRootView: View {
                 .frame(maxHeight: .infinity)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 6)
-        .background(Color(uiColor: .secondarySystemBackground).ignoresSafeArea())
     }
 }
 
@@ -73,13 +79,16 @@ struct CandidateBar: View {
                 Text(model.composition)
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                     .padding(.horizontal, 8)
             }
 
-            HStack(spacing: 2) {
-                ForEach(Array(model.candidates.prefix(5))) { candidate in
-                    CandidateChip(candidate: candidate, compact: true) {
-                        model.selectCandidate(at: candidate.id)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    ForEach(model.candidates) { candidate in
+                        CandidateChip(candidate: candidate, compact: true) {
+                            model.selectCandidate(at: candidate.id)
+                        }
                     }
                 }
             }
@@ -88,7 +97,7 @@ struct CandidateBar: View {
                 Button {
                     model.toggleCandidatePanel()
                 } label: {
-                    Image(systemName: model.isCandidatePanelExpanded ? "chevron.down" : "chevron.up")
+                    Image(systemName: "chevron.up")
                         .font(.system(size: 12, weight: .semibold))
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
@@ -124,51 +133,67 @@ struct CandidateBar: View {
 struct CandidatePanel: View {
     @ObservedObject var model: KeyboardViewModel
 
-    private let columns = Array(
-        repeating: GridItem(.flexible(), spacing: 4),
-        count: 5
-    )
+    private let columns = [
+        GridItem(.flexible(), spacing: 6),
+        GridItem(.flexible(), spacing: 6)
+    ]
 
     var body: some View {
-        VStack(spacing: 4) {
-            LazyVGrid(columns: columns, spacing: 4) {
+        VStack(spacing: 6) {
+            HStack {
+                Text("候选")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("第 \(model.pageNumber + 1) 页")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+
+                Button("收起") {
+                    model.toggleCandidatePanel()
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .buttonStyle(.plain)
+            }
+
+            LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(model.candidates) { candidate in
                     CandidateChip(candidate: candidate, compact: false) {
                         model.selectCandidate(at: candidate.id)
                     }
                 }
             }
+            .frame(maxHeight: .infinity, alignment: .top)
 
-            if model.hasPreviousPage || model.hasNextPage {
-                HStack(spacing: 12) {
-                    Button("上一页") {
-                        model.changePage(backward: true)
-                    }
-                    .disabled(!model.hasPreviousPage)
-
-                    Text("第 \(model.pageNumber + 1) 页")
-                        .foregroundStyle(.secondary)
-
-                    Button("下一页") {
-                        model.changePage(backward: false)
-                    }
-                    .disabled(!model.hasNextPage)
+            HStack(spacing: 20) {
+                Button("上一页") {
+                    model.changePage(backward: true)
                 }
-                .font(.system(size: 11))
-                .buttonStyle(.plain)
+                .disabled(!model.hasPreviousPage)
+
+                Button("下一页") {
+                    model.changePage(backward: false)
+                }
+                .disabled(!model.hasNextPage)
             }
+            .font(.system(size: 12, weight: .medium))
+            .buttonStyle(.plain)
         }
-        .padding(6)
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(uiColor: .systemBackground).opacity(0.75))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(uiColor: .systemBackground).opacity(0.85))
         )
-        .gesture(
-            DragGesture(minimumDistance: 24)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
                 .onEnded { value in
-                    if value.translation.width < -30 {
+                    if value.translation.width < -40 {
                         model.changePage(backward: false)
-                    } else if value.translation.width > 30 {
+                    } else if value.translation.width > 40 {
                         model.changePage(backward: true)
                     }
                 }
@@ -183,11 +208,11 @@ struct CandidateChip: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 0) {
+            VStack(alignment: compact ? .center : .leading, spacing: 1) {
                 Text(candidate.text)
                     .font(.system(size: compact ? 18 : 17))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .lineLimit(compact ? 1 : 2)
+                    .fixedSize(horizontal: compact, vertical: false)
 
                 if let comment = candidate.comment, !comment.isEmpty {
                     Text(comment)
@@ -196,9 +221,10 @@ struct CandidateChip: View {
                         .lineLimit(1)
                 }
             }
-            .padding(.horizontal, compact ? 10 : 6)
-            .frame(height: compact ? 30 : 32)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, compact ? 10 : 8)
+            .padding(.vertical, compact ? 0 : 4)
+            .frame(minHeight: compact ? 30 : 32)
+            .frame(maxWidth: compact ? nil : .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
     }
@@ -239,19 +265,61 @@ struct KeyButton: View {
     let returnKeyLabel: String
     let onTap: (KeyboardKey) -> Void
 
+    @State private var pressed = false
+    @State private var delayTimer: Timer?
+    @State private var repeatTimer: Timer?
+
     var body: some View {
         if case .none = key.action {
             Color.clear
         } else {
-            Button {
-                onTap(key)
-            } label: {
-                label
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(KeyboardKeyStyle(isSpecial: key.isSpecial))
+            label
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(keyBackground)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in activate() }
+                        .onEnded { _ in deactivate() }
+                )
+                .onDisappear { stopRepeat() }
         }
+    }
+
+    private func activate() {
+        guard !pressed else { return }
+        pressed = true
+        onTap(key)
+        guard key.action == .delete else { return }
+        delayTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
+            repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { _ in
+                onTap(key)
+            }
+        }
+    }
+
+    private func deactivate() {
+        pressed = false
+        stopRepeat()
+    }
+
+    private func stopRepeat() {
+        delayTimer?.invalidate()
+        delayTimer = nil
+        repeatTimer?.invalidate()
+        repeatTimer = nil
+    }
+
+    private var keyBackground: some View {
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(key.isSpecial ? Color(uiColor: .tertiarySystemFill) : Color(uiColor: .systemBackground))
+            .shadow(
+                color: Color.black.opacity(pressed ? 0 : 0.12),
+                radius: 0,
+                x: 0,
+                y: 1
+            )
+            .opacity(pressed ? 0.65 : 1)
     }
 
     @ViewBuilder
@@ -259,11 +327,13 @@ struct KeyButton: View {
         if let systemImage = key.systemImage {
             Image(systemName: systemImage)
                 .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(key.isSpecial ? Color.secondary : Color.primary)
         } else {
             Text(displayLabel)
                 .font(.system(size: displayLabel.count > 1 ? 13 : 20))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .foregroundStyle(key.isSpecial ? Color.secondary : Color.primary)
         }
     }
 
@@ -276,25 +346,5 @@ struct KeyButton: View {
         default:
             return key.label
         }
-    }
-}
-
-struct KeyboardKeyStyle: ButtonStyle {
-    let isSpecial: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(isSpecial ? Color.secondary : Color.primary)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(isSpecial ? Color(uiColor: .tertiarySystemFill) : Color(uiColor: .systemBackground))
-                    .shadow(
-                        color: Color.black.opacity(configuration.isPressed ? 0 : 0.12),
-                        radius: 0,
-                        x: 0,
-                        y: 1
-                    )
-            )
-            .opacity(configuration.isPressed ? 0.65 : 1)
     }
 }
