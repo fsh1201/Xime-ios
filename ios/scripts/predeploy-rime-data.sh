@@ -63,6 +63,13 @@ echo "==> 预生成词典"
 rm -rf "$BASE/user" "$RIME_DATA/build"
 "$BUILD/rime_predeploy" "$RIME_DATA" "$BASE/user"
 
+if [[ ! -d "$BASE/user/build" ]]; then
+    echo "错误：没有生成 $BASE/user/build" >&2
+    exit 1
+fi
+
+cp -a "$BASE/user/build" "$RIME_DATA/build"
+
 if [[ ! -d "$RIME_DATA/build" ]]; then
     echo "错误：没有生成 $RIME_DATA/build" >&2
     exit 1
