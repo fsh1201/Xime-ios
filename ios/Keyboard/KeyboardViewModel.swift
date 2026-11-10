@@ -9,6 +9,8 @@ final class KeyboardViewModel: ObservableObject {
     @Published private(set) var pageNumber = 0
     @Published private(set) var hasPreviousPage = false
     @Published private(set) var hasNextPage = false
+    @Published private(set) var isCandidatePanelExpanded = false
+    @Published private(set) var isPinyinSchema = true
     @Published private(set) var isShifted = false
     @Published private(set) var layer: KeyboardLayer = .letters
     @Published private(set) var showsGlobe = true
@@ -22,11 +24,13 @@ final class KeyboardViewModel: ObservableObject {
     var onCompositionChange: ((String) -> Void)?
     var onFeedback: (() -> Void)?
     var onGlobe: (() -> Void)?
+    var onCandidatePanelChange: (() -> Void)?
 
     private var cancellables = Set<AnyCancellable>()
 
     init(engine: RimeEngine = RimeEngineFactory.make()) {
         self.engine = engine
+        isPinyinSchema = RimePreferences.selectedSchema != RimePreferences.wubi
         NotificationCenter.default.publisher(for: AppGroup.settingsChangedNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -88,6 +92,25 @@ final class KeyboardViewModel: ObservableObject {
         apply(engine.changePage(backward: backward))
     }
 
+    func toggleCandidatePanel() {
+        guard !candidates.isEmpty else { return }
+        setCandidatePanelExpanded(!isCandidatePanelExpanded)
+    }
+
+    func toggleSchema() {
+        let newSchema = isPinyinSchema ? RimePreferences.wubi : RimePreferences.pinyin
+        RimePreferences.setSchema(newSchema)
+        engine.selectSchema(newSchema)
+        resetComposition()
+        isPinyinSchema = !isPinyinSchema
+    }
+
+    private func setCandidatePanelExpanded(_ expanded: Bool) {
+        guard isCandidatePanelExpanded != expanded else { return }
+        isCandidatePanelExpanded = expanded
+        onCandidatePanelChange?()
+    }
+
     func updateContext(
         autocapitalization: UITextAutocapitalizationType,
         keyboardType: UIKeyboardType,
@@ -142,6 +165,7 @@ final class KeyboardViewModel: ObservableObject {
         pageNumber = 0
         hasPreviousPage = false
         hasNextPage = false
+        setCandidatePanelExpanded(false)
         onCompositionChange?("")
     }
 
@@ -154,6 +178,9 @@ final class KeyboardViewModel: ObservableObject {
         pageNumber = output.pageNumber
         hasPreviousPage = output.hasPreviousPage
         hasNextPage = output.hasMorePages
+        if output.composition.isEmpty {
+            setCandidatePanelExpanded(false)
+        }
         onCompositionChange?(output.composition)
     }
 }

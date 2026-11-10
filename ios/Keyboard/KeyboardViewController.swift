@@ -5,7 +5,9 @@ final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardViewModel()
     private var hostingController: UIHostingController<KeyboardRootView>?
     private var heightConstraint: NSLayoutConstraint?
+    private var baseHeight: CGFloat = 280
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .light)
+    private let candidatePanelHeight: CGFloat = 100
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -92,23 +94,28 @@ final class KeyboardViewController: UIInputViewController {
         model.onGlobe = { [weak self] in
             self?.advanceToNextInputMode()
         }
+
+        model.onCandidatePanelChange = { [weak self] in
+            self?.updateHeight()
+        }
     }
 
     private func setupHeight() {
-        let constraint = view.heightAnchor.constraint(
-            equalToConstant: CGFloat(SharedStore.load().keyboardHeight)
-        )
+        baseHeight = CGFloat(SharedStore.load().keyboardHeight)
+        let constraint = view.heightAnchor.constraint(equalToConstant: baseHeight)
         constraint.priority = .defaultHigh
         constraint.isActive = true
         heightConstraint = constraint
     }
 
     private func updateHeight() {
-        heightConstraint?.constant = CGFloat(SharedStore.load().keyboardHeight)
+        let panelHeight = model.isCandidatePanelExpanded ? candidatePanelHeight : 0
+        heightConstraint?.constant = baseHeight + panelHeight
     }
 
     @objc private func settingsChanged() {
         model.reloadSettings()
+        baseHeight = CGFloat(SharedStore.load().keyboardHeight)
         updateHeight()
     }
 

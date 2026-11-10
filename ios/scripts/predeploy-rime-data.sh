@@ -70,6 +70,11 @@ fi
 
 cp -a "$BASE/user/build" "$RIME_DATA/build"
 
+# 候选面板每页 10 个（5 列 × 2 行）。
+for schema in "$RIME_DATA/build/"*.schema.yaml; do
+    sed -i '' 's/^  page_size: 5$/  page_size: 10/' "$schema"
+done
+
 if [[ ! -d "$RIME_DATA/build" ]]; then
     echo "错误：没有生成 $RIME_DATA/build" >&2
     exit 1

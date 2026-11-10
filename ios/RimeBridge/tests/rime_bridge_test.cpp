@@ -31,6 +31,7 @@ int main(int argc, char **argv) {
     const char *shared = argc > 1 ? argv[1] : nullptr;
     const char *user = argc > 2 ? argv[2] : nullptr;
     const char *schema = argc > 3 ? argv[3] : "pinyin_simp";
+    const char *input = argc > 4 ? argv[4] : "nihao";
 
     if (!shared || !user) {
         std::fprintf(stderr, "usage: %s <shared_data_dir> <user_data_dir> [schema]\n",
@@ -58,12 +59,12 @@ int main(int argc, char **argv) {
     print_result("schema", xime_rime_select_schema(session, schema));
 
     // 逐键组合 + 选择候选。
-    type_text(session, "nihao");
+    type_text(session, input);
     print_result("select 0", xime_rime_select_candidate(session, 0));
     print_result("status", xime_rime_status(session));
 
     // 空格选首候选。
-    type_text(session, "nihao");
+    type_text(session, input);
     print_result("space", xime_rime_process_key(session, 0x20, 0));
 
     // 退格删组合。

@@ -62,6 +62,17 @@ final class LibrimeRimeEngine: RimeEngine {
             return nil
         }
         session = created
+
+        RimePreferences.selectedSchema.withCString { schema in
+            xime_rime_free_string(xime_rime_select_schema(created, schema))
+        }
+    }
+
+    func selectSchema(_ id: String) {
+        guard let session else { return }
+        id.withCString { schema in
+            xime_rime_free_string(xime_rime_select_schema(session, schema))
+        }
     }
 
     deinit {

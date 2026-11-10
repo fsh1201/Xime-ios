@@ -26,6 +26,22 @@ enum RimeKey: Equatable {
     case escape
 }
 
+enum RimePreferences {
+    static let pinyin = "pinyin_simp"
+    static let wubi = "wubi86_pinyin"
+
+    private static let schemaKey = "rime.schema"
+
+    /// 默认拼音；用户切到五笔后会记住选择。
+    static var selectedSchema: String {
+        AppGroup.defaults.string(forKey: schemaKey) ?? pinyin
+    }
+
+    static func setSchema(_ id: String) {
+        AppGroup.defaults.set(id, forKey: schemaKey)
+    }
+}
+
 /// 键盘只依赖这个协议；librime 接入后替换工厂实现即可。
 protocol RimeEngine: AnyObject {
     var name: String { get }
@@ -34,6 +50,7 @@ protocol RimeEngine: AnyObject {
     func processKey(_ key: RimeKey) -> RimeOutput
     func selectCandidate(at index: Int) -> RimeOutput
     func changePage(backward: Bool) -> RimeOutput
+    func selectSchema(_ id: String)
     func commitComposition() -> RimeOutput
     func setOption(_ name: String, value: Bool)
 }
@@ -60,6 +77,7 @@ final class PassthroughRimeEngine: RimeEngine {
 
     func selectCandidate(at index: Int) -> RimeOutput { .empty }
     func changePage(backward: Bool) -> RimeOutput { .empty }
+    func selectSchema(_ id: String) {}
     func commitComposition() -> RimeOutput { .empty }
     func setOption(_ name: String, value: Bool) {}
 }
