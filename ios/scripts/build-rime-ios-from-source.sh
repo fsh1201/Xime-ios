@@ -59,6 +59,18 @@ sed "s|\${CMAKE_SOURCE_DIR}|$JNI|g" \
     "$JNI/cmake/OpenccWorkarounds.cmake" > "$SRC/cmake/OpenccWorkarounds.cmake"
 cp "$ROOT/ios/RimeBridge/ios/CMakeLists.txt" "$SRC/CMakeLists.txt"
 
+# 交叉编译时不能运行 iOS 版 opencc_dict；rime 数据里已有预生成的 .ocd2。
+OPENCC_CMAKE="$JNI/librime/deps/opencc/CMakeLists.txt"
+if [[ -f "$OPENCC_CMAKE.xime.bak" ]]; then
+    mv -f "$OPENCC_CMAKE.xime.bak" "$OPENCC_CMAKE"
+fi
+if grep -q '^add_subdirectory(data)$' "$OPENCC_CMAKE"; then
+    echo "==> 跳过 OpenCC 词典生成（使用 assets 中预生成的 ocd2）"
+    cp "$OPENCC_CMAKE" "$OPENCC_CMAKE.xime.bak"
+    sed -i '' 's|^add_subdirectory(data)$|# XIME_SKIP_OPENCC_DATA\n# add_subdirectory(data)|' "$OPENCC_CMAKE"
+    trap 'mv -f "$OPENCC_CMAKE.xime.bak" "$OPENCC_CMAKE"' EXIT
+fi
+
 # Boost.cmake 的相对路径以 CMake 进程工作目录为准。
 if [[ ! -d "$SRC/boost" && -d "$SRC/boost-1.89.0" ]]; then
     echo "==> 清理上次中断的 Boost 解压目录"
