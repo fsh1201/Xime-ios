@@ -30,10 +30,10 @@ jobs:
             app/src/main/assets/rime
 
       - name: Build librime for iOS
-        run: ./ios/scripts/build-rime-ios-from-source.sh
+        run: bash ./ios/scripts/build-rime-ios-from-source.sh
 
       - name: Enable Rime bridge
-        run: ./ios/scripts/enable-rime.sh
+        run: bash ./ios/scripts/enable-rime.sh
 
       - name: Install XcodeGen
         run: brew install xcodegen
