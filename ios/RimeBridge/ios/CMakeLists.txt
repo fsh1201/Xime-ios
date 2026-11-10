@@ -58,6 +58,11 @@ option(SNAPPY_INSTALL "" OFF)
 add_subdirectory(${JNI_DIR}/snappy snappy-build)
 
 set(HAVE_SNAPPY TRUE)
+# ios-cmake 的 check_library_exists 会误判（静态库不真正链接），
+# 显式关闭系统库，避免链接不存在的 crc32c/tcmalloc。
+set(HAVE_CRC32C FALSE CACHE BOOL "" FORCE)
+set(HAVE_TCMALLOC FALSE CACHE BOOL "" FORCE)
+set(HAVE_LIBDL FALSE CACHE BOOL "" FORCE)
 option(LEVELDB_BUILD_TESTS "" OFF)
 option(LEVELDB_BUILD_BENCHMARKS "" OFF)
 option(LEVELDB_INSTALL "" OFF)
