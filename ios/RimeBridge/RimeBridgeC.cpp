@@ -53,6 +53,28 @@ bool start_maintenance(bool full_check) {
     return true;
 }
 
+xime_rime_session *create_session_internal() {
+    RimeApi *api = rime_get_api();
+    if (!api) {
+        return nullptr;
+    }
+
+    const RimeSessionId id = api->create_session();
+    if (id == 0) {
+        return nullptr;
+    }
+
+    auto *session = new (std::nothrow) xime_rime_session;
+    if (!session) {
+        api->destroy_session(id);
+        return nullptr;
+    }
+
+    session->id = id;
+    session->api = api;
+    return session;
+}
+
 void append_json_string(std::ostringstream &out, const char *value) {
     if (!value) {
         out << "null";
@@ -190,26 +212,18 @@ extern "C" xime_rime_session *xime_rime_create(const char *shared_data_dir,
     if (!xime_rime_deploy(shared_data_dir, user_data_dir, false)) {
         return nullptr;
     }
+    return create_session_internal();
+}
 
-    RimeApi *api = rime_get_api();
-    if (!api) {
+extern "C" xime_rime_session *xime_rime_create_passive(const char *shared_data_dir,
+                                                       const char *user_data_dir) {
+    if (!shared_data_dir || !user_data_dir) {
         return nullptr;
     }
-
-    const RimeSessionId id = api->create_session();
-    if (id == 0) {
+    if (!initialize_rime(shared_data_dir, user_data_dir)) {
         return nullptr;
     }
-
-    auto *session = new (std::nothrow) xime_rime_session;
-    if (!session) {
-        api->destroy_session(id);
-        return nullptr;
-    }
-
-    session->id = id;
-    session->api = api;
-    return session;
+    return create_session_internal();
 }
 
 extern "C" void xime_rime_destroy(xime_rime_session *session) {

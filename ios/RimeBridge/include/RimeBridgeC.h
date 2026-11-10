@@ -24,6 +24,11 @@ typedef struct xime_rime_session xime_rime_session;
 xime_rime_session *xime_rime_create(const char *shared_data_dir,
                                     const char *user_data_dir);
 
+/// 与 xime_rime_create 相同，但不执行维护/部署。
+/// 用于已经内置预编译词典、且运行在键盘扩展里的场景。
+xime_rime_session *xime_rime_create_passive(const char *shared_data_dir,
+                                            const char *user_data_dir);
+
 void xime_rime_destroy(xime_rime_session *session);
 void xime_rime_reset(xime_rime_session *session);
 

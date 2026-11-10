@@ -15,7 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-15-intel
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
@@ -28,6 +28,9 @@ jobs:
             app/src/main/jni/librime \
             app/src/main/jni/snappy \
             app/src/main/assets/rime
+
+      - name: Predeploy Rime dictionaries
+        run: bash ./ios/scripts/predeploy-rime-data.sh
 
       - name: Build librime for iOS
         run: bash ./ios/scripts/build-rime-ios-from-source.sh

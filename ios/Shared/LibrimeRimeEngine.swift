@@ -12,50 +12,49 @@ final class LibrimeRimeEngine: RimeEngine {
     private var session: OpaquePointer?
 
     /// 初始化 librime 并同步执行部署；调用方应放到后台线程。
+    /// 仅在 App Group 可用时使用；免费签名模式由键盘使用内置预编译数据。
     static func deploy(fullCheck: Bool) -> Bool {
-        guard
-            let sharedDirectory = AppGroup.rimeSharedDirectory(),
-            let userDirectory = AppGroup.rimeUserDirectory()
-        else {
+        guard let paths = RimePaths.resolve(), paths.usesAppGroup else {
             return false
         }
 
         try? FileManager.default.createDirectory(
-            at: sharedDirectory,
+            at: paths.shared,
             withIntermediateDirectories: true
         )
         try? FileManager.default.createDirectory(
-            at: userDirectory,
+            at: paths.user,
             withIntermediateDirectories: true
         )
 
-        return sharedDirectory.path.withCString { sharedPath in
-            userDirectory.path.withCString { userPath in
+        return paths.shared.path.withCString { sharedPath in
+            paths.user.path.withCString { userPath in
                 xime_rime_deploy(sharedPath, userPath, fullCheck)
             }
         }
     }
 
     init?() {
-        guard
-            let sharedDirectory = AppGroup.rimeSharedDirectory(),
-            let userDirectory = AppGroup.rimeUserDirectory()
-        else {
+        guard let paths = RimePaths.resolve() else {
             return nil
         }
 
         try? FileManager.default.createDirectory(
-            at: sharedDirectory,
+            at: paths.user,
             withIntermediateDirectories: true
         )
-        try? FileManager.default.createDirectory(
-            at: userDirectory,
-            withIntermediateDirectories: true
-        )
+        if paths.usesAppGroup {
+            try? FileManager.default.createDirectory(
+                at: paths.shared,
+                withIntermediateDirectories: true
+            )
+        }
 
-        let created = sharedDirectory.path.withCString { sharedPath in
-            userDirectory.path.withCString { userPath in
-                xime_rime_create(sharedPath, userPath)
+        let created = paths.shared.path.withCString { sharedPath in
+            paths.user.path.withCString { userPath in
+                paths.usesAppGroup
+                    ? xime_rime_create(sharedPath, userPath)
+                    : xime_rime_create_passive(sharedPath, userPath)
             }
         }
 

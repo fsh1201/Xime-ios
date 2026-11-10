@@ -39,6 +39,14 @@ enum AppGroup {
     static let rimeDeployedVersionKey = "rime.deployedVersion"
     static let rimeDeployedAtKey = "rime.deployedAt"
 
+    /// 当前进程是否能访问 App Group 容器。
+    /// 免费签名或 entitlements 被剥离时为 false，此时走键盘内置数据模式。
+    static var hasContainer: Bool {
+        FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: identifier
+        ) != nil
+    }
+
     static var isRimeDeployed: Bool {
         defaults.string(forKey: rimeDeployedVersionKey) != nil
     }

@@ -67,6 +67,9 @@ final class PassthroughRimeEngine: RimeEngine {
 enum RimeEngineFactory {
     static var engineName: String {
         #if canImport(RimeBridgeC)
+        if !AppGroup.hasContainer {
+            return "librime（内置数据）"
+        }
         return AppGroup.isRimeDeployed ? "librime" : "librime（未部署）"
         #else
         return "Passthrough（未链接 librime）"
@@ -83,8 +86,12 @@ enum RimeEngineFactory {
 
     static func make() -> RimeEngine {
         #if canImport(RimeBridgeC)
-        if AppGroup.isRimeDeployed, let engine = LibrimeRimeEngine() {
-            return engine
+        // 有 App Group 时需要主 App 先完成部署；
+        // 没有 App Group 时键盘直接使用 bundle 内置的预编译数据。
+        if !AppGroup.hasContainer || AppGroup.isRimeDeployed {
+            if let engine = LibrimeRimeEngine() {
+                return engine
+            }
         }
         #endif
         return PassthroughRimeEngine()

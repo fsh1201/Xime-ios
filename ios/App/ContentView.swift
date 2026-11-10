@@ -38,12 +38,18 @@ struct ContentView: View {
         } header: {
             Text("状态")
         } footer: {
-            Text(
-                RimeEngineFactory.isLibrimeAvailable
-                    ? "已链接 librime：键盘显示候选并上屏中文。"
-                    : "当前未链接 librime，键盘使用 Passthrough 引擎，按键直接上屏。"
-            )
+            Text(statusFooter)
         }
+    }
+
+    private var statusFooter: String {
+        guard RimeEngineFactory.isLibrimeAvailable else {
+            return "当前未链接 librime，键盘使用 Passthrough 引擎，按键直接上屏。"
+        }
+        if !AppGroup.hasContainer {
+            return "未启用 App Group：键盘使用内置 Rime 数据，主 App 的设置不会同步到键盘。"
+        }
+        return "已链接 librime：键盘显示候选并上屏中文。"
     }
 
     private var deploymentSection: some View {
@@ -52,11 +58,19 @@ struct ContentView: View {
             Button("重新部署") {
                 deployment.redeploy()
             }
-            .disabled(!RimeEngineFactory.isLibrimeAvailable || deployment.status == .running)
+            .disabled(
+                !RimeEngineFactory.isLibrimeAvailable
+                    || deployment.status == .running
+                    || deployment.status == .localMode
+            )
         } header: {
             Text("Rime 部署")
         } footer: {
-            Text("首次部署会编译词典，可能需要几十秒；键盘扩展只做增量维护。")
+            Text(
+                AppGroup.hasContainer
+                    ? "首次部署会编译词典，可能需要几十秒；键盘扩展只做增量维护。"
+                    : "未启用 App Group：键盘使用自身内置的预编译 Rime 数据，无需主 App 部署。"
+            )
         }
     }
 
@@ -66,6 +80,8 @@ struct ContentView: View {
             return "未链接 librime"
         case .idle:
             return "尚未部署"
+        case .localMode:
+            return "内置数据模式"
         case .running:
             return "部署中…"
         case .succeeded(let date):

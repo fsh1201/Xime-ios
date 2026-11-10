@@ -107,6 +107,9 @@ struct CandidateBar: View {
 
     private var hint: String {
         guard RimeEngineFactory.isLibrimeAvailable else { return "Xime" }
+        if !AppGroup.hasContainer {
+            return model.engine.isAvailable ? "Xime" : "内置 Rime 初始化失败"
+        }
         if !AppGroup.isRimeDeployed {
             return "请先打开 Xime 完成部署"
         }

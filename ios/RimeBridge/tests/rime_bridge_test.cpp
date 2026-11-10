@@ -3,6 +3,7 @@
 #include "RimeBridgeC.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -37,13 +38,18 @@ int main(int argc, char **argv) {
         return 64;
     }
 
-    if (!xime_rime_deploy(shared, user, true)) {
-        std::fprintf(stderr, "deploy failed\n");
-        return 1;
+    const bool passive = std::getenv("XIME_PASSIVE") != nullptr;
+    if (!passive) {
+        if (!xime_rime_deploy(shared, user, true)) {
+            std::fprintf(stderr, "deploy failed\n");
+            return 1;
+        }
+        std::printf("deploy ok\n");
     }
-    std::printf("deploy ok\n");
 
-    xime_rime_session *session = xime_rime_create(shared, user);
+    xime_rime_session *session = passive
+                                     ? xime_rime_create_passive(shared, user)
+                                     : xime_rime_create(shared, user);
     if (!session) {
         std::fprintf(stderr, "create failed\n");
         return 2;

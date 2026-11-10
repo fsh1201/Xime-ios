@@ -8,6 +8,7 @@ final class RimeDeploymentModel: ObservableObject {
     enum Status: Equatable {
         case unavailable
         case idle
+        case localMode
         case running
         case succeeded(Date)
         case failed(String)
@@ -26,6 +27,10 @@ final class RimeDeploymentModel: ObservableObject {
             status = .unavailable
             return
         }
+        guard AppGroup.hasContainer else {
+            status = .localMode
+            return
+        }
 
         let defaults = AppGroup.defaults
         if defaults.string(forKey: AppGroup.rimeDeployedVersionKey) == currentVersion {
@@ -41,6 +46,10 @@ final class RimeDeploymentModel: ObservableObject {
     func redeploy() {
         guard RimeEngineFactory.isLibrimeAvailable else {
             status = .unavailable
+            return
+        }
+        guard AppGroup.hasContainer else {
+            status = .localMode
             return
         }
         deploy()
