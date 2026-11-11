@@ -146,6 +146,32 @@ final class LibrimeRimeEngine: RimeEngine {
         return consume(xime_rime_context(session))
     }
 
+    func allCandidates(limit: Int) -> [RimeCandidate] {
+        guard let session else { return [] }
+        guard let pointer = xime_rime_all_candidates(session, Int32(limit)) else {
+            return []
+        }
+        defer { xime_rime_free_string(pointer) }
+
+        let json = String(cString: pointer)
+        guard
+            let data = json.data(using: .utf8),
+            let result = try? JSONDecoder().decode(AllCandidatesResult.self, from: data)
+        else {
+            return []
+        }
+        return result.candidates.map {
+            RimeCandidate(id: $0.index, text: $0.text, comment: $0.comment)
+        }
+    }
+
+    func selectCandidateGlobal(at index: Int) -> RimeOutput {
+        guard let session else { return .empty }
+        let output = consume(xime_rime_select_candidate_global(session, Int32(index)))
+        rawInput = output.composition.filter { !$0.isWhitespace }
+        return output
+    }
+
     func changePage(backward: Bool) -> RimeOutput {
         guard let session else { return .empty }
         return consume(xime_rime_change_page(session, backward))
@@ -207,6 +233,16 @@ private struct BridgeResult: Decodable {
 }
 
 private struct BridgeCandidate: Decodable {
+    let text: String
+    let comment: String?
+}
+
+private struct AllCandidatesResult: Decodable {
+    let candidates: [AllCandidate]
+}
+
+private struct AllCandidate: Decodable {
+    let index: Int
     let text: String
     let comment: String?
 }

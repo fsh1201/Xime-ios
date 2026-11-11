@@ -49,6 +49,10 @@ char *xime_rime_process_key_fast(xime_rime_session *session, int keycode, int mo
 /// 获取当前上下文（会生成候选）。
 char *xime_rime_context(xime_rime_session *session);
 char *xime_rime_select_candidate(xime_rime_session *session, int index);
+/// 按候选全局序号选择（用于跨页的“单字”候选）。
+char *xime_rime_select_candidate_global(xime_rime_session *session, int index);
+/// 返回当前菜单的所有候选（最多 max_count 个），每个候选带全局 index。
+char *xime_rime_all_candidates(xime_rime_session *session, int max_count);
 char *xime_rime_select_schema(xime_rime_session *session, const char *schema_id);
 /// backward 为 true 时翻到上一页，false 时翻到下一页。
 char *xime_rime_change_page(xime_rime_session *session, bool backward);

@@ -59,6 +59,12 @@ cmake -S . -B "$BUILD" \
 echo "==> 编译 rime_predeploy"
 cmake --build "$BUILD" --target rime_predeploy -j"$(sysctl -n hw.ncpu)"
 
+SCHEMA="$RIME_DATA/pinyin_simp.schema.yaml"
+if ! grep -q 'enable_correction' "$SCHEMA"; then
+    echo "==> 启用拼音拼写纠错"
+    python3 -c 'import sys; p=sys.argv[1]; s=open(p).read(); s=s.replace("translator:\n  dictionary: pinyin_simp\n", "translator:\n  dictionary: pinyin_simp\n  enable_correction: true\n"); open(p, "w").write(s)' "$SCHEMA"
+fi
+
 echo "==> 预生成词典"
 rm -rf "$BASE/user" "$RIME_DATA/build"
 "$BUILD/rime_predeploy" "$RIME_DATA" "$BASE/user"

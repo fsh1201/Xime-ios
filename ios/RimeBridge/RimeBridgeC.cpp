@@ -305,6 +305,51 @@ extern "C" char *xime_rime_select_candidate(xime_rime_session *session, int inde
     return build_result(session);
 }
 
+extern "C" char *xime_rime_select_candidate_global(xime_rime_session *session,
+                                                    int index) {
+    if (!session || !session->api) {
+        return nullptr;
+    }
+    session->api->select_candidate(session->id, static_cast<size_t>(index));
+    return build_result(session);
+}
+
+extern "C" char *xime_rime_all_candidates(xime_rime_session *session,
+                                          int max_count) {
+    if (!session || !session->api || max_count <= 0) {
+        return nullptr;
+    }
+
+    RimeCandidateListIterator iterator = {0};
+    if (!session->api->candidate_list_begin(session->id, &iterator)) {
+        return nullptr;
+    }
+
+    std::ostringstream out;
+    out << "{\"candidates\":[";
+
+    int count = 0;
+    bool first = true;
+    // candidate_list_begin 后 index 为 -1，需要先 next 才拿到第 0 个候选。
+    while (count < max_count && session->api->candidate_list_next(&iterator)) {
+        if (!first) {
+            out << ',';
+        }
+        first = false;
+        out << "{\"index\":" << iterator.index << ",\"text\":";
+        append_json_string(out, iterator.candidate.text);
+        out << ",\"comment\":";
+        append_json_string(out, iterator.candidate.comment);
+        out << '}';
+        ++count;
+    }
+
+    session->api->candidate_list_end(&iterator);
+    out << "]}";
+
+    return duplicate_string(out.str());
+}
+
 extern "C" char *xime_rime_change_page(xime_rime_session *session, bool backward) {
     if (!session || !session->api) {
         return nullptr;

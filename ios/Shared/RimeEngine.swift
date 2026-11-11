@@ -60,7 +60,9 @@ protocol RimeEngine: AnyObject {
     func reset()
     func processKey(_ key: RimeKey) -> RimeOutput
     func refreshCandidates() -> RimeOutput
+    func allCandidates(limit: Int) -> [RimeCandidate]
     func selectCandidate(at index: Int) -> RimeOutput
+    func selectCandidateGlobal(at index: Int) -> RimeOutput
     func changePage(backward: Bool) -> RimeOutput
     func selectSchema(_ id: String)
     func commitComposition() -> RimeOutput
@@ -88,6 +90,8 @@ final class PassthroughRimeEngine: RimeEngine {
     }
 
     func selectCandidate(at index: Int) -> RimeOutput { .empty }
+    func selectCandidateGlobal(at index: Int) -> RimeOutput { .empty }
+    func allCandidates(limit: Int) -> [RimeCandidate] { [] }
     func refreshCandidates() -> RimeOutput { .empty }
     func changePage(backward: Bool) -> RimeOutput { .empty }
     func selectSchema(_ id: String) {}

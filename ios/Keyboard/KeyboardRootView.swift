@@ -120,6 +120,26 @@ struct CandidateBar: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+
+                if !model.isAsciiMode {
+                    Button {
+                        model.toggleSingleCharMode()
+                    } label: {
+                        Text("单")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 26, height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(
+                                        model.isSingleCharMode
+                                            ? Color.accentColor.opacity(0.25)
+                                            : Color(uiColor: .tertiarySystemFill)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(model.isSingleCharMode ? Color.primary : Color.secondary)
+                }
             }
 
             if model.candidates.isEmpty && model.composition.isEmpty {
@@ -198,7 +218,7 @@ struct CandidatePanel: View {
     var body: some View {
         VStack(spacing: 6) {
             HStack {
-                Text("候选")
+                Text(model.isSingleCharMode ? "单字" : "候选")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
 
@@ -215,14 +235,16 @@ struct CandidatePanel: View {
                 .buttonStyle(.plain)
             }
 
-            LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(model.candidates) { candidate in
-                    CandidateChip(candidate: candidate, compact: false) {
-                        model.selectCandidate(at: candidate.id)
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 6) {
+                    ForEach(model.candidates) { candidate in
+                        CandidateChip(candidate: candidate, compact: false) {
+                            model.selectCandidate(at: candidate.id)
+                        }
                     }
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .frame(maxHeight: .infinity)
 
             HStack(spacing: 20) {
                 Button("上一页") {

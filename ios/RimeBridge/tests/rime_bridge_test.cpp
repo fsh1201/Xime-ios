@@ -66,6 +66,9 @@ int main(int argc, char **argv) {
     if (std::getenv("XIME_FAST")) {
         print_result("context", xime_rime_context(session));
     }
+    if (std::getenv("XIME_ALL")) {
+        print_result("all", xime_rime_all_candidates(session, 200));
+    }
     print_result("select 0", xime_rime_select_candidate(session, 0));
     print_result("status", xime_rime_status(session));
 

@@ -12,6 +12,7 @@ final class KeyboardViewModel: ObservableObject {
     @Published private(set) var isCandidatePanelExpanded = false
     @Published private(set) var isPinyinSchema = true
     @Published private(set) var isAsciiMode = false
+    @Published private(set) var isSingleCharMode = false
     @Published private(set) var isShifted = false
     @Published private(set) var layer: KeyboardLayer = .letters
     @Published private(set) var showsGlobe = true
@@ -68,6 +69,7 @@ final class KeyboardViewModel: ObservableObject {
             isShifted.toggle()
 
         case .delete:
+            cancelCandidateRefresh()
             if composition.isEmpty {
                 onDelete?()
             } else {
@@ -118,7 +120,10 @@ final class KeyboardViewModel: ObservableObject {
         let generation = inputGeneration
         DispatchQueue.main.async { [weak self] in
             guard let self, self.inputGeneration == generation else { return }
-            self.apply(self.engine.selectCandidate(at: index))
+            let output = self.isSingleCharMode
+                ? self.engine.selectCandidateGlobal(at: index)
+                : self.engine.selectCandidate(at: index)
+            self.apply(output)
         }
         notifyFeedback()
     }
@@ -151,7 +156,25 @@ final class KeyboardViewModel: ObservableObject {
         isAsciiMode.toggle()
         RimePreferences.setAsciiMode(isAsciiMode)
         engine.setOption("ascii_mode", value: isAsciiMode)
+        if isAsciiMode {
+            isSingleCharMode = false
+        }
         resetComposition()
+    }
+
+    func toggleSingleCharMode() {
+        isSingleCharMode.toggle()
+        cancelCandidateRefresh()
+        candidates = []
+        pageNumber = 0
+        hasPreviousPage = false
+        hasNextPage = false
+
+        if isSingleCharMode {
+            refreshSingleCharCandidates()
+        } else if !composition.isEmpty {
+            scheduleCandidateRefresh()
+        }
     }
 
     private func setCandidatePanelExpanded(_ expanded: Bool) {
@@ -223,7 +246,32 @@ final class KeyboardViewModel: ObservableObject {
         let generation = inputGeneration
         DispatchQueue.main.async { [weak self] in
             guard let self, self.inputGeneration == generation else { return }
-            self.apply(self.engine.processKey(key), notifyComposition: false)
+            let output = self.engine.processKey(key)
+            if key == .space {
+                self.apply(output)
+            } else {
+                self.applyFast(output)
+            }
+        }
+    }
+
+    /// 字符/退格已经做了乐观上屏，异步结果只处理提交和候选，不再改 marked text。
+    private func applyFast(_ output: RimeOutput) {
+        if let commit = output.commit, !commit.isEmpty {
+            onCommit?(commit)
+            composition = ""
+            onCompositionChange?("")
+        }
+
+        if composition.isEmpty {
+            cancelCandidateRefresh()
+            candidates = []
+            pageNumber = 0
+            hasPreviousPage = false
+            hasNextPage = false
+            setCandidatePanelExpanded(false)
+        } else {
+            scheduleCandidateRefresh()
         }
     }
 
@@ -278,12 +326,22 @@ final class KeyboardViewModel: ObservableObject {
         if notifyComposition || output.composition != previous {
             onCompositionChange?(output.composition)
         }
+
+        if isSingleCharMode && !composition.isEmpty {
+            refreshSingleCharCandidates()
+        }
     }
 
     private func scheduleCandidateRefresh() {
         candidateRefresh?.cancel()
         let item = DispatchWorkItem { [weak self] in
             guard let self else { return }
+
+            if self.isSingleCharMode {
+                self.refreshSingleCharCandidates()
+                return
+            }
+
             let output = self.engine.refreshCandidates()
             guard !output.composition.isEmpty else { return }
             self.candidates = output.candidates
@@ -293,6 +351,34 @@ final class KeyboardViewModel: ObservableObject {
         }
         candidateRefresh = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: item)
+    }
+
+    private func refreshSingleCharCandidates() {
+        guard isSingleCharMode, !composition.isEmpty else {
+            candidates = []
+            pageNumber = 0
+            hasPreviousPage = false
+            hasNextPage = false
+            return
+        }
+
+        let all = engine.allCandidates(limit: 200)
+        var seen = Set<String>()
+        var singles: [RimeCandidate] = []
+        for candidate in all where candidate.text.count == 1 {
+            if seen.insert(candidate.text).inserted {
+                singles.append(candidate)
+            }
+        }
+
+        candidates = Array(singles.prefix(30))
+        pageNumber = 0
+        hasPreviousPage = false
+        hasNextPage = false
+
+        if !candidates.isEmpty {
+            setCandidatePanelExpanded(true)
+        }
     }
 
     private func cancelCandidateRefresh() {
