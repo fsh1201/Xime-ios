@@ -8,7 +8,9 @@ struct KeyboardRootView: View {
 
     var body: some View {
         Group {
-            if model.settings.candidateBarEnabled && model.isCandidatePanelExpanded {
+            if model.layer == .emoji {
+                EmojiPanel(model: model)
+            } else if model.settings.candidateBarEnabled && model.isCandidatePanelExpanded {
                 CandidatePanel(model: model)
             } else {
                 keyboardBody
@@ -47,6 +49,45 @@ private extension KeyboardViewModel {
     }
 }
 
+struct EmojiPanel: View {
+    @ObservedObject var model: KeyboardViewModel
+
+    private let columns = Array(
+        repeating: GridItem(.flexible(), spacing: 2),
+        count: 8
+    )
+
+    private let bottomRow = [
+        KeyboardKey("emoji-abc", label: "ABC", action: .layer(.letters), width: 1.5, isSpecial: true),
+        KeyboardKey("emoji-space", label: "空格", action: .space, width: 4.5),
+        KeyboardKey("emoji-delete", systemImage: "delete.left", action: .delete, width: 1.5, isSpecial: true),
+        KeyboardKey("emoji-return", label: "换行", action: .returnKey, width: 1.75, isSpecial: true)
+    ]
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 2) {
+                    ForEach(EmojiCatalog.all, id: \.self) { emoji in
+                        Button {
+                            model.commitText(emoji)
+                        } label: {
+                            Text(emoji)
+                                .font(.system(size: 26))
+                                .frame(maxWidth: .infinity, minHeight: 34)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            KeyboardRowView(row: bottomRow, returnKeyLabel: model.returnKeyLabel, onTap: model.tap)
+                .equatable()
+                .frame(height: 40)
+        }
+    }
+}
+
 struct CandidateBar: View {
     @ObservedObject var model: KeyboardViewModel
 
@@ -57,6 +98,20 @@ struct CandidateBar: View {
                     model.toggleSchema()
                 } label: {
                     Text(model.isPinyinSchema ? "拼" : "五")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 26, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color(uiColor: .tertiarySystemFill))
+                        )
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+
+                Button {
+                    model.toggleAsciiMode()
+                } label: {
+                    Text(model.isAsciiMode ? "英" : "中")
                         .font(.system(size: 12, weight: .semibold))
                         .frame(width: 26, height: 26)
                         .background(
@@ -116,6 +171,9 @@ struct CandidateBar: View {
     }
 
     private var hint: String {
+        if model.isAsciiMode {
+            return "英文"
+        }
         guard RimeEngineFactory.isLibrimeAvailable else { return "Xime" }
         if !AppGroup.hasContainer {
             return model.engine.isAvailable ? "Xime" : "内置 Rime 初始化失败"

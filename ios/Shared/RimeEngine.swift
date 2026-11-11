@@ -33,6 +33,7 @@ enum RimePreferences {
     static let wubi = "wubi86_pinyin"
 
     private static let schemaKey = "rime.schema"
+    private static let asciiKey = "rime.asciiMode"
 
     /// 默认拼音；用户切到五笔后会记住选择。
     static var selectedSchema: String {
@@ -41,6 +42,14 @@ enum RimePreferences {
 
     static func setSchema(_ id: String) {
         AppGroup.defaults.set(id, forKey: schemaKey)
+    }
+
+    static var isAsciiMode: Bool {
+        AppGroup.defaults.bool(forKey: asciiKey)
+    }
+
+    static func setAsciiMode(_ value: Bool) {
+        AppGroup.defaults.set(value, forKey: asciiKey)
     }
 }
 

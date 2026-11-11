@@ -11,6 +11,7 @@ final class KeyboardViewModel: ObservableObject {
     @Published private(set) var hasNextPage = false
     @Published private(set) var isCandidatePanelExpanded = false
     @Published private(set) var isPinyinSchema = true
+    @Published private(set) var isAsciiMode = false
     @Published private(set) var isShifted = false
     @Published private(set) var layer: KeyboardLayer = .letters
     @Published private(set) var showsGlobe = true
@@ -28,10 +29,16 @@ final class KeyboardViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var candidateRefresh: DispatchWorkItem?
+    private var inputGeneration = 0
 
     init(engine: RimeEngine = RimeEngineFactory.make()) {
         self.engine = engine
         isPinyinSchema = RimePreferences.selectedSchema != RimePreferences.wubi
+        isAsciiMode = RimePreferences.isAsciiMode
+        if isAsciiMode {
+            engine.setOption("ascii_mode", value: true)
+        }
+
         NotificationCenter.default.publisher(for: AppGroup.settingsChangedNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -42,59 +49,89 @@ final class KeyboardViewModel: ObservableObject {
 
     func tap(_ key: KeyboardKey) {
         guard key.action != .none else { return }
-        onFeedback?()
 
         switch key.action {
         case .character(let character):
-            let output = engine.processKey(.character(character))
-            apply(output)
+            if isAsciiMode {
+                onCommit?(String(character))
+            } else {
+                // 先更新显示，再让 Rime 在下一个 runloop 处理，避免文字上屏被引擎阻塞。
+                composition += String(character)
+                onCompositionChange?(composition)
+                scheduleProcess(.character(character))
+            }
             if isShifted {
                 isShifted = false
             }
+
         case .shift:
             isShifted.toggle()
+
         case .delete:
             if composition.isEmpty {
                 onDelete?()
             } else {
-                apply(engine.processKey(.backspace))
+                composition.removeLast()
+                onCompositionChange?(composition)
+                scheduleProcess(.backspace)
             }
+
         case .space:
-            if composition.isEmpty {
+            if isAsciiMode || composition.isEmpty {
                 onCommit?(" ")
             } else {
-                apply(engine.processKey(.space))
+                scheduleProcess(.space)
             }
+
         case .returnKey:
-            if !composition.isEmpty {
-                apply(engine.commitComposition())
-            }
-            resetComposition()
-            onCommit?("\n")
+            finishAndInsertNewline()
+
         case .globe:
             onGlobe?()
+
         case .layer(let newLayer):
             layer = newLayer
             isShifted = false
             resetComposition()
+
         case .text(let text):
             onCommit?(text)
+
         case .none:
             break
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onFeedback?()
+        }
+    }
+
+    func commitText(_ text: String) {
+        onCommit?(text)
+        DispatchQueue.main.async { [weak self] in
+            self?.onFeedback?()
         }
     }
 
     func selectCandidate(at index: Int) {
         cancelCandidateRefresh()
-        onFeedback?()
-        apply(engine.selectCandidate(at: index))
+        let generation = inputGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.inputGeneration == generation else { return }
+            self.apply(self.engine.selectCandidate(at: index))
+        }
+        notifyFeedback()
     }
 
     func changePage(backward: Bool) {
         guard !candidates.isEmpty else { return }
         cancelCandidateRefresh()
-        onFeedback?()
-        apply(engine.changePage(backward: backward))
+        let generation = inputGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.inputGeneration == generation else { return }
+            self.apply(self.engine.changePage(backward: backward))
+        }
+        notifyFeedback()
     }
 
     func toggleCandidatePanel() {
@@ -106,8 +143,15 @@ final class KeyboardViewModel: ObservableObject {
         let newSchema = isPinyinSchema ? RimePreferences.wubi : RimePreferences.pinyin
         RimePreferences.setSchema(newSchema)
         engine.selectSchema(newSchema)
+        isPinyinSchema.toggle()
         resetComposition()
-        isPinyinSchema = !isPinyinSchema
+    }
+
+    func toggleAsciiMode() {
+        isAsciiMode.toggle()
+        RimePreferences.setAsciiMode(isAsciiMode)
+        engine.setOption("ascii_mode", value: isAsciiMode)
+        resetComposition()
     }
 
     private func setCandidatePanelExpanded(_ expanded: Bool) {
@@ -163,7 +207,7 @@ final class KeyboardViewModel: ObservableObject {
     }
 
     func resetComposition() {
-        guard !composition.isEmpty || !candidates.isEmpty else { return }
+        inputGeneration += 1
         cancelCandidateRefresh()
         engine.reset()
         composition = ""
@@ -175,7 +219,35 @@ final class KeyboardViewModel: ObservableObject {
         onCompositionChange?("")
     }
 
-    private func apply(_ output: RimeOutput) {
+    private func scheduleProcess(_ key: RimeKey) {
+        let generation = inputGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.inputGeneration == generation else { return }
+            self.apply(self.engine.processKey(key), notifyComposition: false)
+        }
+    }
+
+    private func finishAndInsertNewline() {
+        let generation = inputGeneration
+        let hadComposition = !composition.isEmpty
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if self.inputGeneration == generation && hadComposition {
+                self.apply(self.engine.commitComposition())
+            }
+            self.resetComposition()
+            self.onCommit?("\n")
+        }
+    }
+
+    private func notifyFeedback() {
+        DispatchQueue.main.async { [weak self] in
+            self?.onFeedback?()
+        }
+    }
+
+    private func apply(_ output: RimeOutput, notifyComposition: Bool = true) {
+        let previous = composition
         if let commit = output.commit, !commit.isEmpty {
             onCommit?(commit)
         }
@@ -203,7 +275,9 @@ final class KeyboardViewModel: ObservableObject {
             }
         }
 
-        onCompositionChange?(output.composition)
+        if notifyComposition || output.composition != previous {
+            onCompositionChange?(output.composition)
+        }
     }
 
     private func scheduleCandidateRefresh() {
