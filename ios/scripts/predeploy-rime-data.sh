@@ -65,6 +65,13 @@ if ! grep -q 'enable_correction' "$SCHEMA"; then
     python3 -c 'import sys; p=sys.argv[1]; s=open(p).read(); s=s.replace("translator:\n  dictionary: pinyin_simp\n", "translator:\n  dictionary: pinyin_simp\n  enable_correction: true\n"); open(p, "w").write(s)' "$SCHEMA"
 fi
 
+echo "==> 加入自然码双拼 schema"
+cp "$ROOT/ios/RimeData/double_pinyin.schema.yaml" "$RIME_DATA/double_pinyin.schema.yaml"
+DEFAULT_CUSTOM="$RIME_DATA/default.custom.yaml"
+if ! grep -q 'schema: double_pinyin' "$DEFAULT_CUSTOM"; then
+    python3 -c 'import sys; p=sys.argv[1]; s=open(p).read(); s=s.replace("    - schema: pinyin_simp\n", "    - schema: pinyin_simp\n    - schema: double_pinyin\n", 1); open(p, "w").write(s)' "$DEFAULT_CUSTOM"
+fi
+
 echo "==> 预生成词典"
 rm -rf "$BASE/user" "$RIME_DATA/build"
 "$BUILD/rime_predeploy" "$RIME_DATA" "$BASE/user"

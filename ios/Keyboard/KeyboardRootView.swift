@@ -96,7 +96,7 @@ struct CandidateBar: View {
                 Button {
                     model.toggleSchema()
                 } label: {
-                    Text(model.isPinyinSchema ? "拼" : "五")
+                    Text(model.schemaLabel)
                         .font(.system(size: 12, weight: .semibold))
                         .frame(width: 26, height: 26)
                         .background(

@@ -10,7 +10,7 @@ final class KeyboardViewModel: ObservableObject {
     @Published private(set) var hasPreviousPage = false
     @Published private(set) var hasNextPage = false
     @Published private(set) var isCandidatePanelExpanded = false
-    @Published private(set) var isPinyinSchema = true
+    @Published private(set) var schemaLabel = "拼"
     @Published private(set) var isAsciiMode = false
     @Published private(set) var isSingleCharMode = false
     @Published private(set) var isShifted = false
@@ -34,7 +34,7 @@ final class KeyboardViewModel: ObservableObject {
 
     init(engine: RimeEngine = RimeEngineFactory.make()) {
         self.engine = engine
-        isPinyinSchema = RimePreferences.selectedSchema != RimePreferences.wubi
+        schemaLabel = Self.label(for: RimePreferences.selectedSchema)
         isAsciiMode = RimePreferences.isAsciiMode
         if isAsciiMode {
             engine.setOption("ascii_mode", value: true)
@@ -145,11 +145,30 @@ final class KeyboardViewModel: ObservableObject {
     }
 
     func toggleSchema() {
-        let newSchema = isPinyinSchema ? RimePreferences.wubi : RimePreferences.pinyin
-        RimePreferences.setSchema(newSchema)
-        engine.selectSchema(newSchema)
-        isPinyinSchema.toggle()
+        let order = [
+            RimePreferences.pinyin,
+            RimePreferences.doublePinyin,
+            RimePreferences.wubi
+        ]
+        let current = RimePreferences.selectedSchema
+        let index = order.firstIndex(of: current) ?? 0
+        let next = order[(index + 1) % order.count]
+
+        RimePreferences.setSchema(next)
+        engine.selectSchema(next)
+        schemaLabel = Self.label(for: next)
         resetComposition()
+    }
+
+    private static func label(for schema: String) -> String {
+        switch schema {
+        case RimePreferences.doublePinyin:
+            return "双"
+        case RimePreferences.wubi:
+            return "五"
+        default:
+            return "拼"
+        }
     }
 
     func toggleAsciiMode() {

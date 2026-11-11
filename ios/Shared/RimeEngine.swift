@@ -30,6 +30,7 @@ enum RimeKey: Equatable {
 
 enum RimePreferences {
     static let pinyin = "pinyin_simp"
+    static let doublePinyin = "double_pinyin"
     static let wubi = "wubi86_pinyin"
 
     private static let schemaKey = "rime.schema"

@@ -76,6 +76,11 @@ final class KeyboardViewController: UIInputViewController {
         model.onCompositionChange = { [weak self] text in
             guard let self else { return }
             if text.isEmpty {
+                // unmarkText() 会把 marked text 提交到输入框；清空组合要用空 marked text。
+                self.textDocumentProxy.setMarkedText(
+                    "",
+                    selectedRange: NSRange(location: 0, length: 0)
+                )
                 self.textDocumentProxy.unmarkText()
             } else {
                 self.textDocumentProxy.setMarkedText(
