@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 struct KeyboardRootView: View {
     @ObservedObject var model: KeyboardViewModel
@@ -318,91 +319,158 @@ struct KeyboardRowView: View, Equatable {
     }
 }
 
-struct KeyButton: View {
+struct KeyButton: UIViewRepresentable {
     let key: KeyboardKey
     let returnKeyLabel: String
     let onTap: (KeyboardKey) -> Void
 
-    @State private var pressed = false
-    @State private var delayTimer: Timer?
-    @State private var repeatTimer: Timer?
-
-    var body: some View {
-        if case .none = key.action {
-            Color.clear
-        } else {
-            label
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(keyBackground)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { _ in activate() }
-                        .onEnded { _ in deactivate() }
-                )
-                .onDisappear { stopRepeat() }
-        }
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
     }
 
-    private func activate() {
-        guard !pressed else { return }
-        pressed = true
-        onTap(key)
-        guard key.action == .delete else { return }
-        delayTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { _ in
-            repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { _ in
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .custom)
+        button.contentEdgeInsets = .zero
+        button.titleLabel?.adjustsFontSizeToFitWidth = true
+        button.titleLabel?.minimumScaleFactor = 0.6
+        button.titleLabel?.lineBreakMode = .byTruncatingTail
+        button.layer.cornerRadius = 7
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.12
+        button.layer.shadowRadius = 0
+        button.layer.shadowOffset = CGSize(width: 0, height: 1)
+        button.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.touchDown(_:)),
+            for: .touchDown
+        )
+        button.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.touchEnded(_:)),
+            for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit]
+        )
+        context.coordinator.button = button
+        configure(button, coordinator: context.coordinator)
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        configure(button, coordinator: context.coordinator)
+    }
+
+    private func configure(_ button: UIButton, coordinator: Coordinator) {
+        coordinator.key = key
+        coordinator.onTap = onTap
+        coordinator.returnKeyLabel = returnKeyLabel
+
+        if case .none = key.action {
+            button.isUserInteractionEnabled = false
+            button.setTitle(nil, for: .normal)
+            button.setImage(nil, for: .normal)
+            button.backgroundColor = .clear
+            button.layer.shadowOpacity = 0
+            return
+        }
+
+        button.isUserInteractionEnabled = true
+        coordinator.applyAppearance(to: button)
+    }
+
+    final class Coordinator: NSObject {
+        var key: KeyboardKey?
+        var onTap: ((KeyboardKey) -> Void)?
+        var returnKeyLabel = ""
+        weak var button: UIButton?
+
+        private var isPressed = false
+        private var delayTimer: Timer?
+        private var repeatTimer: Timer?
+
+        @objc func touchDown(_ sender: UIButton) {
+            guard let key, let onTap, key.action != .none else { return }
+            isPressed = true
+            sender.backgroundColor = pressedBackground(for: key)
+            onTap(key)
+
+            guard key.action == .delete else { return }
+            delayTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in
+                self?.startRepeat()
+            }
+        }
+
+        @objc func touchEnded(_ sender: UIButton) {
+            isPressed = false
+            stopRepeat()
+            if let key {
+                sender.backgroundColor = background(for: key)
+            }
+        }
+
+        func applyAppearance(to button: UIButton) {
+            guard let key else { return }
+
+            button.setImage(nil, for: .normal)
+            button.setTitle(nil, for: .normal)
+            button.layer.shadowOpacity = 0.12
+
+            if let systemImage = key.systemImage {
+                let configuration = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+                button.setImage(
+                    UIImage(systemName: systemImage, withConfiguration: configuration),
+                    for: .normal
+                )
+                button.tintColor = key.isSpecial ? .secondaryLabel : .label
+            } else {
+                let label: String
+                switch key.action {
+                case .returnKey:
+                    label = returnKeyLabel
+                case .character(let character):
+                    label = String(character)
+                default:
+                    label = key.label
+                }
+                button.setTitle(label, for: .normal)
+                button.setTitleColor(key.isSpecial ? .secondaryLabel : .label, for: .normal)
+                button.titleLabel?.font = .systemFont(ofSize: label.count > 1 ? 13 : 20)
+            }
+
+            if !isPressed {
+                button.backgroundColor = background(for: key)
+            }
+
+            button.isAccessibilityElement = true
+            button.accessibilityLabel = button.title(for: .normal) ?? key.label
+            button.accessibilityTraits = [.button, .keyboardKey]
+        }
+
+        private func startRepeat() {
+            repeatTimer?.invalidate()
+            repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { [weak self] _ in
+                guard let self, let key = self.key, let onTap = self.onTap else { return }
                 onTap(key)
             }
         }
-    }
 
-    private func deactivate() {
-        pressed = false
-        stopRepeat()
-    }
-
-    private func stopRepeat() {
-        delayTimer?.invalidate()
-        delayTimer = nil
-        repeatTimer?.invalidate()
-        repeatTimer = nil
-    }
-
-    private var keyBackground: some View {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(key.isSpecial ? Color(uiColor: .tertiarySystemFill) : Color(uiColor: .systemBackground))
-            .shadow(
-                color: Color.black.opacity(pressed ? 0 : 0.12),
-                radius: 0,
-                x: 0,
-                y: 1
-            )
-            .opacity(pressed ? 0.65 : 1)
-    }
-
-    @ViewBuilder
-    private var label: some View {
-        if let systemImage = key.systemImage {
-            Image(systemName: systemImage)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(key.isSpecial ? Color.secondary : Color.primary)
-        } else {
-            Text(displayLabel)
-                .font(.system(size: displayLabel.count > 1 ? 13 : 20))
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .foregroundStyle(key.isSpecial ? Color.secondary : Color.primary)
+        private func stopRepeat() {
+            delayTimer?.invalidate()
+            delayTimer = nil
+            repeatTimer?.invalidate()
+            repeatTimer = nil
         }
-    }
 
-    private var displayLabel: String {
-        switch key.action {
-        case .returnKey:
-            return returnKeyLabel
-        case .character(let character):
-            return String(character)
-        default:
-            return key.label
+        private func background(for key: KeyboardKey) -> UIColor {
+            key.isSpecial ? .tertiarySystemFill : .systemBackground
+        }
+
+        private func pressedBackground(for key: KeyboardKey) -> UIColor {
+            key.isSpecial
+                ? UIColor.tertiarySystemFill.withAlphaComponent(0.7)
+                : UIColor.systemBackground.withAlphaComponent(0.7)
+        }
+
+        deinit {
+            stopRepeat()
         }
     }
 }
