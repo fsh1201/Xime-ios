@@ -53,7 +53,13 @@ final class KeyboardViewModel: ObservableObject {
 
         switch key.action {
         case .character(let character):
-            if isAsciiMode {
+            if character.isNumber {
+                if composition.isEmpty {
+                    onCommit?(String(character))
+                } else {
+                    commitCompositionThenInsert(String(character))
+                }
+            } else if isAsciiMode {
                 onCommit?(String(character))
             } else {
                 // 先更新显示，再让 Rime 在下一个 runloop 处理，避免文字上屏被引擎阻塞。
@@ -86,7 +92,7 @@ final class KeyboardViewModel: ObservableObject {
             }
 
         case .returnKey:
-            finishAndInsertNewline()
+            commitRawInputAndNewline()
 
         case .globe:
             onGlobe?()
@@ -294,16 +300,26 @@ final class KeyboardViewModel: ObservableObject {
         }
     }
 
-    private func finishAndInsertNewline() {
+    /// 回车时把当前组合的原始字母直接上屏，而不是提交第一个候选。
+    private func commitRawInputAndNewline() {
+        let raw = composition
+        resetComposition()
+        if !raw.isEmpty {
+            onCommit?(raw)
+        }
+        onCommit?("\n")
+    }
+
+    /// 数字键：先提交当前候选，再插入数字。
+    private func commitCompositionThenInsert(_ text: String) {
         let generation = inputGeneration
-        let hadComposition = !composition.isEmpty
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            if self.inputGeneration == generation && hadComposition {
+            if self.inputGeneration == generation && !self.composition.isEmpty {
                 self.apply(self.engine.commitComposition())
             }
             self.resetComposition()
-            self.onCommit?("\n")
+            self.onCommit?(text)
         }
     }
 
