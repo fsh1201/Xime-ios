@@ -291,8 +291,8 @@ struct KeyButton: View {
         pressed = true
         onTap(key)
         guard key.action == .delete else { return }
-        delayTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
-            repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { _ in
+        delayTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { _ in
+            repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { _ in
                 onTap(key)
             }
         }

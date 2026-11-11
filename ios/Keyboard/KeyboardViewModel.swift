@@ -27,6 +27,7 @@ final class KeyboardViewModel: ObservableObject {
     var onCandidatePanelChange: (() -> Void)?
 
     private var cancellables = Set<AnyCancellable>()
+    private var candidateRefresh: DispatchWorkItem?
 
     init(engine: RimeEngine = RimeEngineFactory.make()) {
         self.engine = engine
@@ -76,18 +77,22 @@ final class KeyboardViewModel: ObservableObject {
             layer = newLayer
             isShifted = false
             resetComposition()
+        case .text(let text):
+            onCommit?(text)
         case .none:
             break
         }
     }
 
     func selectCandidate(at index: Int) {
+        cancelCandidateRefresh()
         onFeedback?()
         apply(engine.selectCandidate(at: index))
     }
 
     func changePage(backward: Bool) {
         guard !candidates.isEmpty else { return }
+        cancelCandidateRefresh()
         onFeedback?()
         apply(engine.changePage(backward: backward))
     }
@@ -159,6 +164,7 @@ final class KeyboardViewModel: ObservableObject {
 
     func resetComposition() {
         guard !composition.isEmpty || !candidates.isEmpty else { return }
+        cancelCandidateRefresh()
         engine.reset()
         composition = ""
         candidates = []
@@ -174,13 +180,49 @@ final class KeyboardViewModel: ObservableObject {
             onCommit?(commit)
         }
         composition = output.composition
-        candidates = output.candidates
-        pageNumber = output.pageNumber
-        hasPreviousPage = output.hasPreviousPage
-        hasNextPage = output.hasMorePages
-        if output.composition.isEmpty {
-            setCandidatePanelExpanded(false)
+
+        if output.candidatesStale {
+            if output.composition.isEmpty {
+                cancelCandidateRefresh()
+                candidates = []
+                pageNumber = 0
+                hasPreviousPage = false
+                hasNextPage = false
+                setCandidatePanelExpanded(false)
+            } else {
+                scheduleCandidateRefresh()
+            }
+        } else {
+            cancelCandidateRefresh()
+            candidates = output.candidates
+            pageNumber = output.pageNumber
+            hasPreviousPage = output.hasPreviousPage
+            hasNextPage = output.hasMorePages
+            if output.composition.isEmpty {
+                setCandidatePanelExpanded(false)
+            }
         }
+
         onCompositionChange?(output.composition)
+    }
+
+    private func scheduleCandidateRefresh() {
+        candidateRefresh?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let output = self.engine.refreshCandidates()
+            guard !output.composition.isEmpty else { return }
+            self.candidates = output.candidates
+            self.pageNumber = output.pageNumber
+            self.hasPreviousPage = output.hasPreviousPage
+            self.hasNextPage = output.hasMorePages
+        }
+        candidateRefresh = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: item)
+    }
+
+    private func cancelCandidateRefresh() {
+        candidateRefresh?.cancel()
+        candidateRefresh = nil
     }
 }

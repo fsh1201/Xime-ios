@@ -4,6 +4,7 @@ enum KeyboardLayer: String, Equatable {
     case letters
     case numbers
     case symbols
+    case emoji
 }
 
 enum KeyAction: Equatable {
@@ -14,6 +15,7 @@ enum KeyAction: Equatable {
     case returnKey
     case globe
     case layer(KeyboardLayer)
+    case text(String)
     case none
 }
 
@@ -51,6 +53,8 @@ enum KeyboardLayout {
             return numberRows(showsGlobe: showsGlobe)
         case .symbols:
             return symbolRows(showsGlobe: showsGlobe)
+        case .emoji:
+            return emojiRows(showsGlobe: showsGlobe)
         }
     }
 
@@ -156,9 +160,50 @@ enum KeyboardLayout {
                 KeyboardKey("globe", systemImage: "globe", action: .globe, width: 1.25, isSpecial: true)
             )
         }
+        row.append(KeyboardKey("emoji", label: "😊", action: .layer(.emoji), width: 1.25, isSpecial: true))
         row.append(KeyboardKey("space", label: "空格", action: .space, width: 5.5))
         row.append(KeyboardKey("return", label: "换行", action: .returnKey, width: 2.0, isSpecial: true))
         return row
+    }
+
+    private static let emojis = [
+        "😀", "😁", "😂", "🤣", "😊", "😍",
+        "🥰", "😘", "😎", "🤔", "😅", "😭",
+        "😡", "👍", "👎", "👏", "🙏", "💪",
+        "❤️", "🔥", "🎉", "🌹", "🍎", "⚡️",
+        "✅", "❌", "⭐️", "☀️", "🌙", "🎵"
+    ]
+
+    private static func emojiRows(showsGlobe: Bool) -> [[KeyboardKey]] {
+        var rows: [[KeyboardKey]] = []
+        var index = 0
+        while index < emojis.count {
+            let end = min(index + 6, emojis.count)
+            var row: [KeyboardKey] = []
+            for offset in index..<end {
+                let emoji = emojis[offset]
+                row.append(KeyboardKey("emoji-\(offset)", label: emoji, action: .text(emoji)))
+            }
+            rows.append(row)
+            index = end
+        }
+
+        var bottom: [KeyboardKey] = [
+            KeyboardKey("layer", label: "ABC", action: .layer(.letters), width: 1.5, isSpecial: true)
+        ]
+        if showsGlobe {
+            bottom.append(
+                KeyboardKey("globe", systemImage: "globe", action: .globe, width: 1.25, isSpecial: true)
+            )
+        }
+        bottom.append(KeyboardKey("space", label: "空格", action: .space, width: 4.5))
+        bottom.append(
+            KeyboardKey("delete", systemImage: "delete.left", action: .delete, width: 1.5, isSpecial: true)
+        )
+        bottom.append(KeyboardKey("return", label: "换行", action: .returnKey, width: 1.75, isSpecial: true))
+        rows.append(bottom)
+
+        return rows
     }
 
     private static func characterKey(_ value: String, shifted: Bool = false) -> KeyboardKey {

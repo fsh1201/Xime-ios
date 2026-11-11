@@ -43,6 +43,11 @@ void xime_rime_reset(xime_rime_session *session);
 ///   "asciiMode": false
 /// }
 char *xime_rime_process_key(xime_rime_session *session, int keycode, int modifiers);
+/// 只处理按键，返回 commit/preedit，不生成候选（JSON 中 "stale": true）。
+/// 用于快速输入，候选由 xime_rime_context 在停顿后刷新。
+char *xime_rime_process_key_fast(xime_rime_session *session, int keycode, int modifiers);
+/// 获取当前上下文（会生成候选）。
+char *xime_rime_context(xime_rime_session *session);
 char *xime_rime_select_candidate(xime_rime_session *session, int index);
 char *xime_rime_select_schema(xime_rime_session *session, const char *schema_id);
 /// backward 为 true 时翻到上一页，false 时翻到下一页。

@@ -14,6 +14,8 @@ struct RimeOutput: Equatable {
     var hasPreviousPage: Bool = false
     var hasMorePages: Bool = false
     var asciiMode: Bool = false
+    /// 该结果只包含组合文本，候选需要稍后刷新。
+    var candidatesStale: Bool = false
 
     static let empty = RimeOutput()
 }
@@ -48,6 +50,7 @@ protocol RimeEngine: AnyObject {
     var isAvailable: Bool { get }
     func reset()
     func processKey(_ key: RimeKey) -> RimeOutput
+    func refreshCandidates() -> RimeOutput
     func selectCandidate(at index: Int) -> RimeOutput
     func changePage(backward: Bool) -> RimeOutput
     func selectSchema(_ id: String)
@@ -76,6 +79,7 @@ final class PassthroughRimeEngine: RimeEngine {
     }
 
     func selectCandidate(at index: Int) -> RimeOutput { .empty }
+    func refreshCandidates() -> RimeOutput { .empty }
     func changePage(backward: Bool) -> RimeOutput { .empty }
     func selectSchema(_ id: String) {}
     func commitComposition() -> RimeOutput { .empty }

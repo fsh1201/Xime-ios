@@ -16,7 +16,10 @@ void print_result(const char *tag, char *json) {
 
 void type_key(xime_rime_session *session, int keycode) {
     char text[2] = {static_cast<char>(keycode), '\0'};
-    print_result(text, xime_rime_process_key(session, keycode, 0));
+    char *json = std::getenv("XIME_FAST")
+                     ? xime_rime_process_key_fast(session, keycode, 0)
+                     : xime_rime_process_key(session, keycode, 0);
+    print_result(text, json);
 }
 
 void type_text(xime_rime_session *session, const char *text) {
@@ -60,6 +63,9 @@ int main(int argc, char **argv) {
 
     // 逐键组合 + 选择候选。
     type_text(session, input);
+    if (std::getenv("XIME_FAST")) {
+        print_result("context", xime_rime_context(session));
+    }
     print_result("select 0", xime_rime_select_candidate(session, 0));
     print_result("status", xime_rime_status(session));
 

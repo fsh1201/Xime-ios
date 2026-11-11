@@ -175,6 +175,7 @@ char *build_result(xime_rime_session *session) {
     const bool has_status = session->api->get_status(session->id, &status);
     out << ",\"asciiMode\":"
         << ((has_status && status.is_ascii_mode) ? "true" : "false");
+    out << ",\"stale\":false";
     if (has_status) {
         session->api->free_status(&status);
     }
@@ -184,6 +185,35 @@ char *build_result(xime_rime_session *session) {
     if (has_context) {
         session->api->free_context(&context);
     }
+
+    return duplicate_string(out.str());
+}
+
+char *build_fast_result(xime_rime_session *session) {
+    if (!session || !session->api) {
+        return nullptr;
+    }
+
+    std::ostringstream out;
+    out << '{';
+
+    std::string commit_text;
+    RimeCommit commit = {0};
+    RIME_STRUCT_INIT(RimeCommit, commit);
+    if (session->api->get_commit(session->id, &commit)) {
+        if (commit.text) {
+            commit_text = commit.text;
+        }
+        session->api->free_commit(&commit);
+    }
+
+    out << "\"commit\":";
+    append_json_string(out, commit_text.empty() ? nullptr : commit_text.c_str());
+
+    // input 由 Swift 侧本地跟踪；这里不生成候选，也不读取 composition。
+    out << ",\"preedit\":\"\"";
+    out << ",\"candidates\":[],\"pageNo\":0,\"isLastPage\":true"
+           ",\"asciiMode\":false,\"stale\":true}";
 
     return duplicate_string(out.str());
 }
@@ -249,6 +279,19 @@ extern "C" char *xime_rime_process_key(xime_rime_session *session, int keycode,
         return nullptr;
     }
     session->api->process_key(session->id, keycode, modifiers);
+    return build_result(session);
+}
+
+extern "C" char *xime_rime_process_key_fast(xime_rime_session *session, int keycode,
+                                            int modifiers) {
+    if (!session || !session->api) {
+        return nullptr;
+    }
+    session->api->process_key(session->id, keycode, modifiers);
+    return build_fast_result(session);
+}
+
+extern "C" char *xime_rime_context(xime_rime_session *session) {
     return build_result(session);
 }
 

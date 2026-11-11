@@ -10,6 +10,7 @@ final class LibrimeRimeEngine: RimeEngine {
     let isAvailable = true
 
     private var session: OpaquePointer?
+    private var rawInput = ""
 
     /// 初始化 librime 并同步执行部署；调用方应放到后台线程。
     /// 仅在 App Group 可用时使用；免费签名模式由键盘使用内置预编译数据。
@@ -69,6 +70,7 @@ final class LibrimeRimeEngine: RimeEngine {
     }
 
     func selectSchema(_ id: String) {
+        rawInput = ""
         guard let session else { return }
         id.withCString { schema in
             xime_rime_free_string(xime_rime_select_schema(session, schema))
@@ -80,6 +82,7 @@ final class LibrimeRimeEngine: RimeEngine {
     }
 
     func reset() {
+        rawInput = ""
         guard let session else { return }
         xime_rime_reset(session)
     }
@@ -87,29 +90,60 @@ final class LibrimeRimeEngine: RimeEngine {
     func processKey(_ key: RimeKey) -> RimeOutput {
         guard let session else { return .empty }
 
+        let output: RimeOutput
         switch key {
         case .character(let character):
+            if let scalar = character.unicodeScalars.first,
+               scalar.isASCII, scalar.value >= 0x20 {
+                rawInput.append(character)
+            }
             // 与 Android 端保持一致：字母统一发送小写 keysym，大写用 Shift 修饰。
             guard let scalar = character.lowercased().unicodeScalars.first?.value else {
                 return .empty
             }
-            let keycode = Int32(scalar)
             let modifiers: Int32 = character.isUppercase ? 1 : 0
-            return consume(xime_rime_process_key(session, keycode, modifiers))
+            output = consume(
+                xime_rime_process_key_fast(session, Int32(scalar), modifiers)
+            )
         case .backspace:
-            return consume(xime_rime_delete_backward(session))
+            if !rawInput.isEmpty {
+                rawInput.removeLast()
+            }
+            output = consume(xime_rime_process_key_fast(session, 0xFF08, 0))
         case .space:
-            return consume(xime_rime_process_key(session, 0x20, 0))
+            output = consume(xime_rime_process_key_fast(session, 0x20, 0))
+            rawInput = ""
         case .enter:
-            return consume(xime_rime_process_key(session, 0xFF0D, 0))
+            output = consume(xime_rime_process_key_fast(session, 0xFF0D, 0))
+            rawInput = ""
         case .escape:
-            return consume(xime_rime_process_key(session, 0xFF1B, 0))
+            output = consume(xime_rime_process_key_fast(session, 0xFF1B, 0))
+            rawInput = ""
         }
+
+        if output.commit?.isEmpty == false {
+            rawInput = ""
+        }
+
+        return RimeOutput(
+            commit: output.commit,
+            composition: rawInput,
+            candidates: [],
+            asciiMode: output.asciiMode,
+            candidatesStale: true
+        )
     }
 
     func selectCandidate(at index: Int) -> RimeOutput {
         guard let session else { return .empty }
-        return consume(xime_rime_select_candidate(session, Int32(index)))
+        let output = consume(xime_rime_select_candidate(session, Int32(index)))
+        rawInput = output.composition.filter { !$0.isWhitespace }
+        return output
+    }
+
+    func refreshCandidates() -> RimeOutput {
+        guard let session else { return .empty }
+        return consume(xime_rime_context(session))
     }
 
     func changePage(backward: Bool) -> RimeOutput {
@@ -118,6 +152,7 @@ final class LibrimeRimeEngine: RimeEngine {
     }
 
     func commitComposition() -> RimeOutput {
+        rawInput = ""
         guard let session else { return .empty }
         return consume(xime_rime_commit(session))
     }
@@ -155,7 +190,8 @@ final class LibrimeRimeEngine: RimeEngine {
             pageNumber: bridge.pageNo,
             hasPreviousPage: bridge.pageNo > 0,
             hasMorePages: !bridge.isLastPage,
-            asciiMode: bridge.asciiMode
+            asciiMode: bridge.asciiMode,
+            candidatesStale: bridge.stale ?? false
         )
     }
 }
@@ -167,6 +203,7 @@ private struct BridgeResult: Decodable {
     let pageNo: Int
     let isLastPage: Bool
     let asciiMode: Bool
+    let stale: Bool?
 }
 
 private struct BridgeCandidate: Decodable {
