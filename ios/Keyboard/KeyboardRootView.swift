@@ -93,19 +93,21 @@ struct CandidateBar: View {
     var body: some View {
         HStack(spacing: 6) {
             if RimeEngineFactory.isLibrimeAvailable {
-                Button {
-                    model.toggleSchema()
-                } label: {
-                    Text(model.schemaLabel)
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 26, height: 26)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color(uiColor: .tertiarySystemFill))
-                        )
+                if !model.isAsciiMode {
+                    Button {
+                        model.toggleSchema()
+                    } label: {
+                        Text(model.schemaLabel)
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 26, height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color(uiColor: .tertiarySystemFill))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
 
                 Button {
                     model.toggleAsciiMode()

@@ -36,9 +36,6 @@ final class KeyboardViewModel: ObservableObject {
         self.engine = engine
         schemaLabel = Self.label(for: RimePreferences.selectedSchema)
         isAsciiMode = RimePreferences.isAsciiMode
-        if isAsciiMode {
-            engine.setOption("ascii_mode", value: true)
-        }
 
         NotificationCenter.default.publisher(for: AppGroup.settingsChangedNotification)
             .receive(on: RunLoop.main)
@@ -53,19 +50,23 @@ final class KeyboardViewModel: ObservableObject {
 
         switch key.action {
         case .character(let character):
-            if character.isNumber {
-                if composition.isEmpty {
-                    onCommit?(String(character))
-                } else {
-                    commitCompositionThenInsert(String(character))
-                }
-            } else if isAsciiMode {
-                onCommit?(String(character))
-            } else {
-                // 先更新显示，再让 Rime 在下一个 runloop 处理，避免文字上屏被引擎阻塞。
+            let isAsciiLetter = character.isLetter
+                && character.unicodeScalars.allSatisfy { $0.isASCII }
+
+            if isAsciiLetter {
                 composition += String(character)
                 onCompositionChange?(composition)
-                scheduleProcess(.character(character))
+                if isAsciiMode {
+                    updateEnglishCandidates()
+                } else {
+                    // 先更新显示，再让 Rime 在下一个 runloop 处理。
+                    scheduleProcess(.character(character))
+                }
+            } else {
+                let text = isAsciiMode
+                    ? String(character)
+                    : Self.chineseSymbol(character)
+                insertDirectText(text)
             }
             if isShifted {
                 isShifted = false
@@ -81,18 +82,30 @@ final class KeyboardViewModel: ObservableObject {
             } else {
                 composition.removeLast()
                 onCompositionChange?(composition)
-                scheduleProcess(.backspace)
+                if isAsciiMode {
+                    updateEnglishCandidates()
+                } else {
+                    scheduleProcess(.backspace)
+                }
             }
 
         case .space:
-            if isAsciiMode || composition.isEmpty {
+            if isAsciiMode {
+                if composition.isEmpty {
+                    onCommit?(" ")
+                } else {
+                    let word = candidates.first?.text ?? composition
+                    resetComposition()
+                    onCommit?(word + " ")
+                }
+            } else if composition.isEmpty {
                 onCommit?(" ")
             } else {
                 scheduleProcess(.space)
             }
 
         case .returnKey:
-            commitRawInputAndNewline()
+            commitRawInputOrReturn()
 
         case .globe:
             onGlobe?()
@@ -122,6 +135,15 @@ final class KeyboardViewModel: ObservableObject {
     }
 
     func selectCandidate(at index: Int) {
+        if isAsciiMode {
+            guard candidates.indices.contains(index) else { return }
+            let word = candidates[index].text
+            resetComposition()
+            onCommit?(word)
+            notifyFeedback()
+            return
+        }
+
         cancelCandidateRefresh()
         let generation = inputGeneration
         DispatchQueue.main.async { [weak self] in
@@ -180,7 +202,6 @@ final class KeyboardViewModel: ObservableObject {
     func toggleAsciiMode() {
         isAsciiMode.toggle()
         RimePreferences.setAsciiMode(isAsciiMode)
-        engine.setOption("ascii_mode", value: isAsciiMode)
         if isAsciiMode {
             isSingleCharMode = false
         }
@@ -254,6 +275,73 @@ final class KeyboardViewModel: ObservableObject {
         settings = SharedStore.load()
     }
 
+    private func insertDirectText(_ text: String) {
+        if composition.isEmpty {
+            onCommit?(text)
+        } else if isAsciiMode {
+            let raw = composition
+            resetComposition()
+            onCommit?(raw + text)
+        } else {
+            commitCompositionThenInsert(text)
+        }
+    }
+
+    private func updateEnglishCandidates() {
+        guard isAsciiMode, !composition.isEmpty else {
+            candidates = []
+            pageNumber = 0
+            hasPreviousPage = false
+            hasNextPage = false
+            return
+        }
+
+        let words = EnglishLexicon.suggestions(for: composition, limit: 10)
+        candidates = words.enumerated().map {
+            RimeCandidate(id: $0.offset, text: $0.element, comment: nil)
+        }
+        pageNumber = 0
+        hasPreviousPage = false
+        hasNextPage = false
+    }
+
+    private static func chineseSymbol(_ character: Character) -> String {
+        switch character {
+        case ",": return "，"
+        case ".": return "。"
+        case "?": return "？"
+        case "!": return "！"
+        case ";": return "；"
+        case ":": return "："
+        case "(": return "（"
+        case ")": return "）"
+        case "[": return "「"
+        case "]": return "」"
+        case "{": return "『"
+        case "}": return "』"
+        case "<": return "《"
+        case ">": return "》"
+        case "'": return "’"
+        case "\"": return "”"
+        case "\\": return "、"
+        case "|": return "｜"
+        case "-": return "－"
+        case "_": return "——"
+        case "+": return "＋"
+        case "=": return "＝"
+        case "~": return "～"
+        case "#": return "＃"
+        case "$": return "￥"
+        case "¥": return "￥"
+        case "%": return "％"
+        case "^": return "……"
+        case "&": return "＆"
+        case "*": return "＊"
+        case "`": return "｀"
+        default: return String(character)
+        }
+    }
+
     func resetComposition() {
         inputGeneration += 1
         cancelCandidateRefresh()
@@ -300,14 +388,15 @@ final class KeyboardViewModel: ObservableObject {
         }
     }
 
-    /// 回车时把当前组合的原始字母直接上屏，而不是提交第一个候选。
-    private func commitRawInputAndNewline() {
+    /// 回车：有组合时提交原始输入，不换行；没有组合时执行宿主回车。
+    private func commitRawInputOrReturn() {
+        guard !composition.isEmpty else {
+            onCommit?("\n")
+            return
+        }
         let raw = composition
         resetComposition()
-        if !raw.isEmpty {
-            onCommit?(raw)
-        }
-        onCommit?("\n")
+        onCommit?(raw)
     }
 
     /// 数字键：先提交当前候选，再插入数字。
