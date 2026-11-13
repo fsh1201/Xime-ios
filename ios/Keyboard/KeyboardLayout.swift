@@ -96,7 +96,7 @@ enum KeyboardLayout {
     private static func numberRows(showsGlobe: Bool) -> [[KeyboardKey]] {
         let first = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
             .map { characterKey($0) }
-        let second = ["-", "/", ":", ";", "(", ")", "¥", "&", "@", "\""]
+        let second = ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""]
             .map { characterKey($0) }
 
         var third = [

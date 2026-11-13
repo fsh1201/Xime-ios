@@ -72,6 +72,10 @@ if ! grep -q 'schema: double_pinyin' "$DEFAULT_CUSTOM"; then
     python3 -c 'import sys; p=sys.argv[1]; s=open(p).read(); s=s.replace("    - schema: pinyin_simp\n", "    - schema: pinyin_simp\n    - schema: double_pinyin\n", 1); open(p, "w").write(s)' "$DEFAULT_CUSTOM"
 fi
 
+echo "==> 精简词库（iOS 内存优先）"
+python3 -c 'import sys; p=sys.argv[1]; s=open(p).read(); s=s.replace("import_tables:\n  - pinyin_simp_ext\n", ""); open(p, "w").write(s)' "$RIME_DATA/pinyin_simp.dict.yaml"
+rm -f "$RIME_DATA/pinyin_simp_ext.dict.yaml" "$RIME_DATA/wubi98.dict.yaml"
+
 echo "==> 预生成词典"
 rm -rf "$BASE/user" "$RIME_DATA/build"
 "$BUILD/rime_predeploy" "$RIME_DATA" "$BASE/user"

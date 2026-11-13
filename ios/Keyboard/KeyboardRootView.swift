@@ -44,7 +44,21 @@ struct KeyboardRootView: View {
 
 private extension KeyboardViewModel {
     var rows: [[KeyboardKey]] {
-        KeyboardLayout.rows(for: layer, shifted: isShifted, showsGlobe: showsGlobe)
+        let base = KeyboardLayout.rows(for: layer, shifted: isShifted, showsGlobe: showsGlobe)
+        guard !isAsciiMode else { return base }
+
+        return base.map { row in
+            row.map { key in
+                guard case .character("$") = key.action else { return key }
+                return KeyboardKey(
+                    key.id,
+                    label: "￥",
+                    action: key.action,
+                    width: key.width,
+                    isSpecial: key.isSpecial
+                )
+            }
+        }
     }
 }
 
